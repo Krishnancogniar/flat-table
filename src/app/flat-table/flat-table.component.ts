@@ -31,8 +31,27 @@ export type FlatTableColumnMeta = FlatTableColumnMetaV1 | FlatTableColumnMetaV2;
 	styleUrls: ['./flat-table.component.scss']
 })
 export class FlatTableComponent implements OnChanges {
-	@Input() metadata: FlatTableColumnMeta[] = [];
-	@Input() data: Array<Record<string, any>> = [];
+	private _metadata: FlatTableColumnMeta[] = [];
+	private _data: Array<Record<string, any>> = [];
+
+	@Input()
+	set metadata(value: FlatTableColumnMeta[] | null | undefined) {
+		this._metadata = Array.isArray(value) ? value : [];
+		this.buildGrid();
+	}
+	get metadata(): FlatTableColumnMeta[] {
+		return this._metadata;
+	}
+
+	@Input()
+	set data(value: Array<Record<string, any>> | null | undefined) {
+		this._data = Array.isArray(value) ? value : [];
+		// create new reference to trigger Angular-Slickgrid change detection
+		this.dataset = Array.isArray(this._data) ? [...this._data] : [];
+	}
+	get data(): Array<Record<string, any>> {
+		return this._data;
+	}
 
 	columnDefinitions: Column[] = [];
 	gridOptions: GridOption = {};
@@ -46,7 +65,7 @@ export class FlatTableComponent implements OnChanges {
 	}
 
 	private buildGrid(): void {
-		const normalized = (this.metadata || [])
+		const normalized = (this._metadata || [])
 			.map(m => this.normalizeMeta(m))
 			.filter(m => m && (m.display ?? true) && (m.status ?? true));
 
@@ -118,6 +137,19 @@ export class FlatTableComponent implements OnChanges {
 		this.columnDefinitions = columns;
 		this.gridOptions = options;
 		this.dataset = Array.isArray(this.data) ? this.data : [];
+	}
+
+	angularGridReady(angularGrid: AngularGridInstance): void {
+		this.angularGrid = angularGrid;
+		const slickGrid = this.angularGrid?.slickGrid;
+		// defer autosize to next tick to ensure DOM ready
+		setTimeout(() => {
+			try {
+				slickGrid?.autosizeColumns();
+			} catch {
+				// noop
+			}
+		});
 	}
 
 	private parseLabelV2(meta: ReturnType<FlatTableComponent['normalizeMeta']>): { group: string; name: string } {

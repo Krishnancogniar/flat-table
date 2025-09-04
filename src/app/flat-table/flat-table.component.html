@@ -1,6 +1,7 @@
 <div class="container-fluid">
 	<angular-slickgrid
 		gridId="flatGrid"
+		(onAngularGridCreated)="angularGridReady($event)"
 		[columnDefinitions]="columnDefinitions"
 		[gridOptions]="gridOptions"
 		[dataset]="dataset"
