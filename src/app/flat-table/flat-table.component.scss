@@ -1,0 +1,8 @@
+.container-fluid {
+	padding: 0.5rem;
+}
+
+:host ::ng-deep .slickgrid-container {
+	height: 70vh;
+}
+
