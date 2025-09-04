@@ -3,13 +3,27 @@ import { AngularGridInstance, Column, Editors, FieldType, Formatters, GridOption
 
 export type ColumnType = 'HIERARCHIAL' | 'PROMO' | 'AGGREGATION';
 
-export interface FlatTableColumnMeta {
+export interface FlatTableColumnMetaV1 {
 	col_header: string; // maps to field in data
 	col_label: string; // "Group_Column"
 	col_type: ColumnType;
 	level: number; // used to sort columns asc
 	editable?: boolean; // only relevant for AGGREGATION
 }
+
+export interface FlatTableColumnMetaV2 {
+	colheader: string;
+	collabel: string;
+	coltype: ColumnType;
+	level: number;
+	status?: boolean;
+	display?: boolean;
+	editable?: boolean;
+	forecastbucket?: string[];
+	forecast_bucket?: string[];
+}
+
+export type FlatTableColumnMeta = FlatTableColumnMetaV1 | FlatTableColumnMetaV2;
 
 @Component({
 	selector: 'app-flat-table',
@@ -32,7 +46,11 @@ export class FlatTableComponent implements OnChanges {
 	}
 
 	private buildGrid(): void {
-		const sortedMeta = [...(this.metadata || [])].sort((a, b) => {
+		const normalized = (this.metadata || [])
+			.map(m => this.normalizeMeta(m))
+			.filter(m => m && (m.display ?? true) && (m.status ?? true));
+
+		const sortedMeta = normalized.sort((a, b) => {
 			const aLevel = typeof a.level === 'number' ? a.level : Number.POSITIVE_INFINITY;
 			const bLevel = typeof b.level === 'number' ? b.level : Number.POSITIVE_INFINITY;
 			return aLevel - bLevel;
@@ -41,9 +59,8 @@ export class FlatTableComponent implements OnChanges {
 		const columns: Column[] = [];
 		let lastFrozenIndex = -1;
 
-		for (let i = 0; i < sortedMeta.length; i++) {
-			const meta = sortedMeta[i];
-			const { group, name } = this.parseLabel(meta.col_label);
+		for (const meta of sortedMeta) {
+			const { group, name } = this.parseLabelV2(meta);
 
 			const common: Partial<Column> = {
 				id: meta.col_header,
@@ -52,28 +69,20 @@ export class FlatTableComponent implements OnChanges {
 				columnGroup: group,
 				sortable: true,
 				filterable: true,
-				minWidth: 90,
-				width: 110
+				minWidth: 100,
+				width: 120
 			};
 
 			let column: Column = { ...common } as Column;
 
 			switch (meta.col_type) {
 				case 'HIERARCHIAL': {
-					column = {
-						...column,
-						type: FieldType.string,
-						frozen: true
-					} as Column;
-					lastFrozenIndex = i;
+					column = { ...column, type: FieldType.string, frozen: true } as Column;
+					lastFrozenIndex = columns.length; // based on visible columns
 					break;
 				}
 				case 'PROMO': {
-					column = {
-						...column,
-						type: FieldType.number,
-						formatter: Formatters.decimal
-					} as Column;
+					column = { ...column, type: FieldType.number, formatter: Formatters.decimal } as Column;
 					break;
 				}
 				case 'AGGREGATION': {
@@ -83,13 +92,6 @@ export class FlatTableComponent implements OnChanges {
 						type: FieldType.number,
 						formatter: Formatters.decimal,
 						editor: isEditable ? { model: Editors.float, params: { decimalPlaces: 2 } } : undefined
-					} as Column;
-					break;
-				}
-				default: {
-					column = {
-						...column,
-						type: FieldType.string
 					} as Column;
 					break;
 				}
@@ -118,17 +120,57 @@ export class FlatTableComponent implements OnChanges {
 		this.dataset = Array.isArray(this.data) ? this.data : [];
 	}
 
-	private parseLabel(colLabel: string): { group: string; name: string } {
-		if (!colLabel) {
-			return { group: '', name: '' };
+	private parseLabelV2(meta: ReturnType<FlatTableComponent['normalizeMeta']>): { group: string; name: string } {
+		const label = meta.col_label || meta.col_header;
+		if (!label) return { group: '', name: '' };
+
+		// AGGREGATION: group by the forecast type suffix found at end of label
+		if (meta.col_type === 'AGGREGATION') {
+			const types = ['Customer Forecast', 'Planner Forecast', 'Statistical Forecast', 'Final Consensus Forecast'];
+			for (const t of types) {
+				if (label.endsWith(t)) {
+					const name = label.substring(0, label.length - t.length).trim();
+					return { group: t, name };
+				}
+			}
+			return { group: 'Forecast', name: label };
 		}
-		const parts = String(colLabel).split('_');
-		if (parts.length <= 1) {
-			return { group: '', name: parts[0] };
+
+		// PROMO: prefix groups like "Lifting Data", "Calculated Columns"
+		if (meta.col_type === 'PROMO') {
+			const knownPrefixes = ['Lifting Data', 'Calculated Columns'];
+			for (const p of knownPrefixes) {
+				if (label.startsWith(p)) {
+					return { group: p, name: label.substring(p.length) };
+				}
+			}
+			return { group: 'Promo', name: label };
 		}
-		const group = parts.shift() as string;
-		const name = parts.join('_');
-		return { group, name };
+
+		// HIERARCHIAL: no group, use label directly
+		return { group: '', name: label };
+	}
+
+	private normalizeMeta(meta: FlatTableColumnMeta): {
+		col_header: string;
+		col_label: string;
+		col_type: ColumnType;
+		level: number;
+		display?: boolean;
+		status?: boolean;
+		editable?: boolean;
+		forecastbucket?: string[];
+	} {
+		const anyMeta: any = meta as any;
+		const col_header = anyMeta.col_header ?? anyMeta.colheader ?? '';
+		const col_label = anyMeta.col_label ?? anyMeta.collabel ?? col_header;
+		const col_type = (anyMeta.col_type ?? anyMeta.coltype) as ColumnType;
+		const level = Number(anyMeta.level ?? Number.POSITIVE_INFINITY);
+		const display = anyMeta.display ?? true;
+		const status = anyMeta.status ?? true;
+		const editable = !!(anyMeta.editable ?? false);
+		const forecastbucket = anyMeta.forecastbucket ?? anyMeta.forecast_bucket ?? [];
+		return { col_header, col_label, col_type, level, display, status, editable, forecastbucket };
 	}
 }
 
