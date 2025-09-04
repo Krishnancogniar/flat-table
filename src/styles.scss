@@ -1,1 +1,10 @@
 /* You can add global styles to this file, and also import other style files */
+
+/* Bootstrap (required by Angular-Slickgrid examples styling) */
+@import "bootstrap/dist/css/bootstrap.css";
+
+/* Angular-Slickgrid themes */
+@import "@slickgrid-universal/common/dist/styles/css/slickgrid-theme-bootstrap.css";
+@import "@slickgrid-universal/common/dist/styles/css/slickgrid-theme-material.css";
+
+/* SlickGrid core styles are bundled within Angular-Slickgrid themes above */

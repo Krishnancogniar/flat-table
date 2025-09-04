@@ -3,7 +3,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
-    "types": []
+    "types": [],
+    "paths": {
+      "dompurify": [
+        "node_modules/dompurify/dist/purify.cjs.js"
+      ]
+    }
+  },
+  "angularCompilerOptions": {
+    "noUncheckedIndexedAccess": false
   },
   "files": [
     "src/main.ts"
