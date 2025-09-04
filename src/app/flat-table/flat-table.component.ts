@@ -120,6 +120,19 @@ export class FlatTableComponent implements OnChanges {
 		this.dataset = Array.isArray(this.data) ? this.data : [];
 	}
 
+	angularGridReady(angularGrid: AngularGridInstance): void {
+		this.angularGrid = angularGrid;
+		const slickGrid = this.angularGrid?.slickGrid;
+		// defer autosize to next tick to ensure DOM ready
+		setTimeout(() => {
+			try {
+				slickGrid?.autosizeColumns();
+			} catch {
+				// noop
+			}
+		});
+	}
+
 	private parseLabelV2(meta: ReturnType<FlatTableComponent['normalizeMeta']>): { group: string; name: string } {
 		const label = meta.col_label || meta.col_header;
 		if (!label) return { group: '', name: '' };
